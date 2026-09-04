@@ -1,0 +1,29 @@
+{
+  "env": {
+    "CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH": "1",
+    "CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS": "4",
+    "CLAUDE_CODE_MAX_TOOL_USE_CONCURRENCY": "4"
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Agent|Workflow|SendMessage",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell.exe",
+            "args": [
+              "-NoProfile",
+              "-ExecutionPolicy",
+              "Bypass",
+              "-File",
+              "C:\\Users\\<user>\\.claude\\hooks\\enforce-agent-dispatch.ps1"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "workflowSizeGuideline": "small",
+  "ultracode": false
+}
