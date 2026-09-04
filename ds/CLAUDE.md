@@ -12,7 +12,7 @@
 - Avoid speculative abstractions, compatibility layers, feature flags, configuration knobs, and retry or fallback logic in code. Retrying a failed command while working is fine.
 - Validate at system boundaries; let impossible internal states fail visibly.
 - When uncertainty remains, name the exact unknown and the smallest source, command, test, or counterexample that resolves it. Try that first; report the unknown only if it is not quickly available.
-- Inspect installed documentation, source, and types before concluding a dependency lacks a capability.
+- Inspect installed documentation, source, and types before concluding a dependency lacks a capability. Recognizing a name is not knowing its current state; verify fast-moving names by searching before answering.
 - Backward compatibility is not a default goal. Keep it only when the user asks or an external contract requires it.
 
 ## Delegation

@@ -104,12 +104,13 @@ if ([string]::IsNullOrWhiteSpace($model)) {
 
 $policies = @{
   'Explore' = @{ model = @('haiku', 'sonnet') }
-  'planner' = @{ model = 'sonnet' }
-  'implementer' = @{ model = 'opus' }
-  'critical-implementer' = @{ model = 'fable' }
-  'qa' = @{ model = 'sonnet' }
-  'reviewer' = @{ model = 'sonnet' }
-  'critical-reviewer' = @{ model = 'fable' }
+  'planner' = @{ model = @('sonnet', 'opus') }
+  'implementer' = @{ model = @('opus', 'sonnet') }
+  'qa' = @{ model = @('sonnet', 'opus') }
+  'reviewer' = @{ model = @('sonnet', 'opus') }
+  'reviewer-fable' = @{ model = @('fable') }
+  'critical-implementer' = @{ model = @('fable') }
+  'critical-reviewer' = @{ model = @('fable') }
 }
 
 if ($policies.ContainsKey($agentType)) {
@@ -121,7 +122,7 @@ if ($policies.ContainsKey($agentType)) {
 }
 
 if ($model -eq 'fable') {
-  Write-Decision -Decision 'deny' -Reason "Fable is restricted to critical-implementer and critical-reviewer; agent type '$agentType' is not approved."
+  Write-Decision -Decision 'deny' -Reason "Fable is restricted to reviewer-fable, critical-implementer, and critical-reviewer; agent type '$agentType' is not approved."
 }
 
 if ($model -notin @('haiku', 'sonnet', 'opus')) {
@@ -132,5 +133,5 @@ if ($agentType -like 'codex:*') {
   exit 0
 }
 
-Write-Decision -Decision 'ask' -Reason "Agent type '$agentType' has no role definition, so it inherits the main-session effort level. Confirm, or use a defined role (Explore, planner, implementer, qa, reviewer) that pins its own effort."
+Write-Decision -Decision 'ask' -Reason "Agent type '$agentType' has no role definition, so it inherits the main-session effort level. Confirm, or use a defined role (Explore, planner, implementer, qa, reviewer, reviewer-fable) that pins its own effort."
 
