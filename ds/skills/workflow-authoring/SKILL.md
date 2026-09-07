@@ -5,7 +5,7 @@ description: Reference for writing a Workflow tool script (script API and gotcha
 
 # Workflow authoring reference
 
-Claude Code version: 2.1.260 (bundled reference this override was derived from; re-diff after every upgrade).
+Claude Code version: derived from the 2.1.260 bundled text. Checked on 2.1.263: no newer bundled extraction exists yet under the Temp skills directory, so the baseline is still 2.1.260. Re-diff when a new extraction appears.
 
 This is a personal override of the bundled `workflow-authoring` skill. The only policy changes are the `model` rule and the Ultracode paragraph; the rest mirrors the bundled reference for Claude Code 2.1.260.
 

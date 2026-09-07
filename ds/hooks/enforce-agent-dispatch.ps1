@@ -57,9 +57,10 @@ if ($call.tool_name -eq 'Workflow') {
   if ([string]::IsNullOrWhiteSpace($script)) {
     Write-Decision -Decision 'deny' -Reason 'Workflow script could not be read by the dispatch policy hook, so its agent models cannot be verified. Pass the script inline or a readable scriptPath.'
   }
-  $segments = $script -split 'agent\s*\('
+  $segments = $script -csplit '(?<![A-Za-z0-9_.])agent\s*\('
   for ($i = 1; $i -lt $segments.Count; $i++) {
     $seg = $segments[$i]
+    if ($seg -match '^\s*\)') { continue }
     $hasModel = $seg -match "model\s*:\s*['`"]?(haiku|sonnet|opus)['`"]?"
     $hasRole = $seg -match "agentType\s*:\s*['`"](Explore|planner|implementer|qa|reviewer)['`"]"
     if (-not ($hasModel -or $hasRole)) {

@@ -25,5 +25,6 @@
     ]
   },
   "workflowSizeGuideline": "small",
-  "ultracode": false
+  "ultracode": false,
+  "subagentPromptCacheTtl": "1h"
 }
