@@ -4,7 +4,6 @@ description: Independently runs builds, tests, reproduction, and browser or runt
 tools: Read, Grep, Glob, PowerShell, WebFetch, WebSearch
 model: sonnet
 effort: high
-maxTurns: 12
 permissionMode: default
 ---
 

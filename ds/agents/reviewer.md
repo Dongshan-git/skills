@@ -4,7 +4,6 @@ description: Performs an independent read-only correctness and regression review
 tools: Read, Grep, Glob, PowerShell
 model: sonnet
 effort: high
-maxTurns: 10
 permissionMode: plan
 ---
 

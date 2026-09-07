@@ -4,7 +4,6 @@ description: Implements one bounded production or test change with focused verif
 tools: Read, Grep, Glob, Edit, Write, PowerShell, Skill
 model: opus
 effort: high
-maxTurns: 16
 permissionMode: default
 ---
 

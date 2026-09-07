@@ -4,7 +4,6 @@ description: Produces a bounded implementation plan from verified repository and
 tools: Read, Grep, Glob, WebFetch, WebSearch, Skill
 model: sonnet
 effort: high
-maxTurns: 8
 permissionMode: plan
 ---
 

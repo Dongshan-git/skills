@@ -4,7 +4,6 @@ description: Performs cheap read-only discovery for one narrow repository or doc
 tools: Read, Grep, Glob, WebFetch, WebSearch
 model: haiku
 effort: low
-maxTurns: 6
 permissionMode: plan
 ---
 

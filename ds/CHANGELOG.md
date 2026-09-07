@@ -8,6 +8,10 @@ Tracks changes to the personal Claude Code dispatch configuration in this direct
 
 Entry format: Claude Code version, date, what changed here, and which official facts drove the change.
 
+## 2.1.263 (2026-09-07, agents resync)
+
+- `agents/*.md`: drop the `maxTurns` field from every role and the coordinator sentence that referenced it; the machine removed turn caps earlier and the repo copy had drifted. Turn limits stay out of the definitions; the dispatch-policy start budget is the ceiling.
+
 ## 2.1.263 (2026-09-07)
 
 Re-verified every factual claim in the three posts against current docs using five Sonnet readers (100 claims: 61 confirmed, 1 contradicted, 10 imprecise, the rest confirmed on secondary pages).

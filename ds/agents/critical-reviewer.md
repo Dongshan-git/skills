@@ -4,7 +4,6 @@ description: Reviews one bounded security, architecture, permission, concurrency
 tools: Read, Grep, Glob, PowerShell, WebFetch, WebSearch
 model: fable
 effort: high
-maxTurns: 8
 permissionMode: plan
 ---
 

@@ -4,7 +4,6 @@ description: Read-only review on Fable at low effort for diffs where Sonnet's ju
 tools: Read, Grep, Glob
 model: fable
 effort: low
-maxTurns: 10
 permissionMode: plan
 ---
 

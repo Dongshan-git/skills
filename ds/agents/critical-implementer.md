@@ -4,7 +4,6 @@ description: Implements one bounded high-risk change that demonstrably requires 
 tools: Read, Grep, Glob, Edit, Write, PowerShell, Skill
 model: fable
 effort: high
-maxTurns: 10
 permissionMode: default
 ---
 
