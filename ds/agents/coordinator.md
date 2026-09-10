@@ -1,7 +1,7 @@
 ---
 name: coordinator
 description: Coordinates bounded engineering work through approved agents and workflows without implementing directly.
-tools: Agent(Explore, planner, implementer, critical-implementer, qa, reviewer, reviewer-fable, critical-reviewer), Read, Grep, Glob, WebFetch, WebSearch, Workflow, Skill
+tools: Agent(Explore, planner, implementer, critical-implementer, qa, reviewer, reviewer-fable, critical-reviewer, codex:codex-rescue), Read, Grep, Glob, WebFetch, WebSearch, Workflow, Skill
 model: opus
 effort: high
 permissionMode: default

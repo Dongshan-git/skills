@@ -10,7 +10,7 @@ Token cost is a first-class constraint. Default to L0 and serial execution. The 
 ## Task levels
 
 | Level | Use for | Total starts | Starts per workflow | Active workflows | Concurrency | Critical Fable starts |
-|---|---|--:|--:|--:|--:|--:|
+| --- | --- | --: | --: | --: | --: | --: |
 | L0 Direct | Explanations and small edits from current context | 0 | 0 | 0 | 0 | 0 |
 | L1 Bounded | One independent task, no cross-check needed | 1 | none | 0 | 1 | 0 |
 | L2 Standard | One implementation plus independent QA or review | 4 | 4 | 1 | 2 | 1 |
@@ -34,7 +34,7 @@ Always pass an explicit `subagent_type` and `model` alias to the Agent tool. Ali
 Each role has a default model in its definition and an allowed set enforced by the hook. Overriding within the allowed set per call is normal; the default is where to start, not a ceiling.
 
 | Role | Default | Allowed | Typical work |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | Explore | haiku | haiku, sonnet | Narrow discovery, evidence lists; sonnet when the search needs more context or turns |
 | planner | sonnet/high | sonnet, opus | Bounded plans; opus for cross-module architecture |
 | implementer | opus/high | opus, sonnet | Production and test changes; sonnet for mechanical edits you can describe precisely |
@@ -48,7 +48,7 @@ Escalation order, from the Claude Code model guidance: ask whether the worker di
 
 Routing notes:
 
-- implementer at opus/high is a deliberate step below the Claude Code default effort. Raise to xhigh when rework or failed verification shows the task needs it.
+- implementer at opus/high runs at the model's default effort: Claude Code defaults to high on every model that supports effort except Opus 4.7, and xhigh is only the default under ultracode. Raise to xhigh when rework or failed verification shows the task needs it.
 - Review prompts are adversarial: ask the reviewer to refute the change and prove it does not work. A second reviewer with fresh context beats re-asking the same one.
 - Built-in types such as general-purpose and Plan also need an explicit haiku, sonnet, or opus alias.
 - A fork ignores the model parameter and runs on the main-session model. Count it as a main-model start and use it only when the full conversation context is required.
@@ -66,4 +66,4 @@ Two kinds of Fable worker exist and are budgeted differently.
 - Run critical roles serially after cheaper evidence is consolidated into a compact packet. Never place any Fable worker in parallel(), pipeline(), restart, resume, repair, or rerun.
 - Never use Fable workers for exploration, fan-out, routine implementation, builds, browser QA, formatting, or documentation.
 - Raise a critical role to xhigh only when an eval on real tasks shows headroom at high. Anthropic reports Fable 5.1 at medium roughly matches Fable 5 at lower cost, so medium is the named midpoint to evaluate between reviewer-fable at low and the critical roles at high.
-- If a Fable worker ends with a refusal stop reason, report that, do not count it as a failed normal-role attempt, and rerun the same task on opus/xhigh without spending another Fable start. The API offers server-side fallback to Opus for refusals, but Claude Code does not expose it, so this manual rerun is the substitute. Finding vulnerabilities in source code is permitted; false positives come mostly from compile-check phrasing, obscure languages, and base64 in tool output.
+- If a Fable worker ends with a refusal stop reason, report that, do not count it as a failed normal-role attempt, and rerun the same task on opus/xhigh without spending another Fable start. Claude Code does re-run classifier-flagged requests on a category fallback model (Fable 5.1: biology on Opus 5, cybersecurity on Opus 4.8) and shows a notice; this machine sets `switchModelsOnFlag: false`, which turns that into a pause for a manual choice in interactive sessions and an error in `-p` runs, and the docs do not say whether the automatic fallback reaches subagents. The manual rerun rule therefore stays. Finding vulnerabilities in source code is permitted; false positives come mostly from compile-check phrasing, obscure languages, and base64 in tool output.

@@ -5,9 +5,9 @@ description: Reference for writing a Workflow tool script (script API and gotcha
 
 # Workflow authoring reference
 
-Claude Code version: derived from the 2.1.260 bundled text. Checked on 2.1.263: no newer bundled extraction exists yet under the Temp skills directory, so the baseline is still 2.1.260. Re-diff when a new extraction appears.
+Claude Code version: derived from the 2.1.267 bundled text, extracted from the `claude.exe` binary (search it for "# Workflow authoring reference"; the bundled skill is a JS template literal, not a file under Temp). Re-diff after each upgrade.
 
-This is a personal override of the bundled `workflow-authoring` skill. The only policy changes are the `model` rule and the Ultracode paragraph; the rest mirrors the bundled reference for Claude Code 2.1.260.
+This is a personal override of the bundled `workflow-authoring` skill. The only policy changes are the `model` rule and the Ultracode paragraph; the rest mirrors the bundled reference for Claude Code 2.1.267. Two facts about the bundled text matter for this override: its `model` guidance ("default to omitting it") is rendered only while `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` is unset, and enabling ultracode with `/effort` injects the bundled text directly, bypassing this override, so the dispatch hook remains the enforcing layer in ultracode sessions.
 
 **Model rule (mandatory).** Every `agent()` call must set `model` to `haiku`, `sonnet`, or `opus`, or set `agentType` to a defined role (`Explore`, `planner`, `implementer`, `qa`, `reviewer`) whose definition pins the model. Never omit `model` and never use `fable` inside a workflow. An omitted model inherits the main-session model, which may be the most expensive tier; the dispatch hook denies such scripts before launch. Choose the tier by the role table in the `dispatch-policy` skill: haiku for narrow discovery, sonnet for planning, QA, review, and synthesis, opus for implementation.
 
@@ -58,6 +58,8 @@ Subagents are told their final text IS the return value (not a human-facing mess
 Schemas need {type: 'object', properties: {...}} at root and required ⊆ properties; unsatisfiable ones throw at agent().
 
 Workflow agents can reach all session-connected MCP tools via ToolSearch — schemas load on demand per agent. Caveat: interactively-authenticated MCP servers (e.g. claude.ai) may be absent in headless/cron runs.
+
+Subagents get the same CLAUDE.md files injected at start that you did (except built-in agent types that omit them, such as Explore and Plan) — don't tell them to re-read those or paste their rules into the prompt; name the specific rule a stage needs, if any.
 
 Scripts are plain JavaScript, NOT TypeScript — type annotations (`: string[]`), interfaces, and generics fail to parse. The script body runs in an async context — use await directly. Standard JS built-ins (JSON, Math, Array, etc.) are available — EXCEPT `Date.now()`/`Math.random()`/argless `new Date()`, which throw (they would break resume); pass timestamps in via `args`, stamp results after the workflow returns, and for randomness vary the agent prompt/label by index. No filesystem or Node.js API access.
 
