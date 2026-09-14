@@ -8,6 +8,15 @@ Tracks changes to the personal Claude Code dispatch configuration in this direct
 
 Entry format: Claude Code version, date, what changed here, and which official facts drove the change.
 
+## 2.1.270 (2026-09-14, throughput)
+
+Separated the speed levers from the cost levers. On a Max subscription, usage draws down by starts, context per start, model tier, and effort; whether four workers run at once or one after another changes nothing, and workflows.md states that sibling agents in one fan-out read each other's prompt-cache prefix, so parallel fan-out is at worst cost-neutral. The previous concurrency caps only stretched wall-clock (the 2.1.270 re-verification's five-agent workflow waited about ten minutes on a policy concurrency of 3).
+
+- `settings.snippet.json` and `profiles/coordinator.json`: `CLAUDE_CODE_MAX_TOOL_USE_CONCURRENCY=4` removed (it throttled every parallel Read, Grep, and Glob batch in every session and saved no tokens; the default is 10); `CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS` raised from 4 to 12 as a runaway-fan-out guard rather than a budget (drop to 8 if 429s appear); `workflowSizeGuideline` from `small` to `medium`, since it is advice to the model and the real ceiling is the policy budget.
+- `skills/dispatch-policy/SKILL.md`: budgets are now counted in Opus-equivalent starts weighted by model (haiku 0.2, sonnet 0.4, opus 1, fable 2, the Claude API list-price ratios to Opus 5; `reviewer-fable` at low weighs 1 on Anthropic's cost-per-task statement, the critical roles weigh 2), so the same L2/L3/L4 numbers (4/6/8) now allow wide Sonnet and Haiku fan-outs while Opus and Fable spend stays where it was. The "Concurrency" and "Starts per workflow" columns are gone; the rule is "run every independent start of a phase concurrently, serialize only stages that need an earlier result", inside the runtime caps (12 Agent-tool subagents, up to 16 workflow agents). "Default to serial execution" removed. The ledger now lists each start's weight.
+- `agents/coordinator.md`: same rule replaces "Default to L0 and serial execution".
+- Unchanged: the hook (it checks models, not concurrency), `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH=1`, `subagentPromptCacheTtl: "1h"`, `ultracode: false`, the role routing and the Fable gate. `/fast` stays off by default: it runs Opus at premium output speed and draws usage credits on a subscription.
+
 ## 2.1.270 (2026-09-14)
 
 Re-verified the three posts and this configuration against the official docs (downloaded as markdown) and the 2.1.268-2.1.270 changelog: one Opus and two Sonnet post readers, one Opus config review, one Opus adversarial pass; 41 findings, 34 confirmed, 7 downgraded, 1 refuted. 2.1.268-2.1.270 contradict nothing in the posts, but the docs and the machine exposed stale statements.

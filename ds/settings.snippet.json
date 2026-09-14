@@ -1,8 +1,7 @@
 {
   "env": {
     "CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH": "1",
-    "CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS": "4",
-    "CLAUDE_CODE_MAX_TOOL_USE_CONCURRENCY": "4"
+    "CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS": "12"
   },
   "hooks": {
     "PreToolUse": [
@@ -24,7 +23,7 @@
       }
     ]
   },
-  "workflowSizeGuideline": "small",
+  "workflowSizeGuideline": "medium",
   "ultracode": false,
   "subagentPromptCacheTtl": "1h"
 }

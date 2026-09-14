@@ -4,12 +4,11 @@
   "model": "opus",
   "effortLevel": "high",
   "alwaysThinkingEnabled": true,
-  "workflowSizeGuideline": "small",
+  "workflowSizeGuideline": "medium",
   "ultracode": false,
   "env": {
     "CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH": "1",
-    "CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS": "4",
-    "CLAUDE_CODE_MAX_TOOL_USE_CONCURRENCY": "4"
+    "CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS": "12"
   },
   "permissions": {
     "defaultMode": "default"
