@@ -8,6 +8,13 @@ Tracks changes to the personal Claude Code dispatch configuration in this direct
 
 Entry format: Claude Code version, date, what changed here, and which official facts drove the change.
 
+## 2.1.270 (2026-09-14, codex)
+
+Reviewed the Codex CLI side of the same machine (codex-cli 0.154.0, `~/.codex`, the Codex plugin for Claude Code 1.0.6) against the Codex docs downloaded as markdown. Those files and the Codex deployment post live outside this repo; the one change here is the Codex routing note in the dispatch policy.
+
+- `skills/dispatch-policy/SKILL.md`: the Codex routing note now states that a Codex delegation runs the machine's default model and effort unless the request text carries `--effort`, and asks for `--effort medium` on bounded work. Basis: the plugin's rescue agent passes model and effort as null, so a rescue inherits `~/.codex/config.toml` (Astra; the root effort was lowered from xhigh to high in the same review), and every Codex cost sentence is per subagent at its model and effort. The Codex delegation weight stays 1.
+- Unchanged: the hook (it passes `codex:*` with any valid alias), the coordinator allowlist, and the budget table.
+
 ## 2.1.270 (2026-09-14, throughput)
 
 Separated the speed levers from the cost levers. On a Max subscription, usage draws down by starts, context per start, model tier, and effort; whether four workers run at once or one after another changes nothing, and workflows.md states that sibling agents in one fan-out read each other's prompt-cache prefix, so parallel fan-out is at worst cost-neutral. The previous concurrency caps only stretched wall-clock (the 2.1.270 re-verification's five-agent workflow waited about ten minutes on a policy concurrency of 3).

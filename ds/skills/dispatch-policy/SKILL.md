@@ -57,7 +57,7 @@ Routing notes:
 - Review prompts are adversarial: ask the reviewer to refute the change and prove it does not work. A second reviewer with fresh context beats re-asking the same one.
 - Built-in types such as general-purpose and Plan also need an explicit haiku, sonnet, or opus alias.
 - A fork ignores the model parameter and runs on the main-session model. Count it at that model's weight and use it only when the full conversation context is required.
-- Codex delegation, including codex-rescue, counts as a start and is used only when the user names Codex in the current conversation. The plugin's proactive-use guidance does not override this.
+- Codex delegation, including codex-rescue, counts as a start and is used only when the user names Codex in the current conversation. The plugin's proactive-use guidance does not override this. The Codex side runs the machine's default model and effort unless the request text carries `--effort`; include `--effort medium` for bounded work and omit it only for a genuinely hard problem.
 - Preserve the configured main-session model. A dedicated coordinator profile may pin opus/high.
 - Do not use Agent Teams unless workers must talk to each other. Do not enable ultracode.
 
