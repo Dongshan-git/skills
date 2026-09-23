@@ -70,4 +70,22 @@ Invoke-Hook 'm2 no tool_name' '{"tool_input":{"to":"x"}}' 'exit2'
 Invoke-Hook 'n Wf scriptPath nonexistent' (@{ tool_name = 'Workflow'; tool_input = @{ scriptPath = 'C:\does\not\exist\wf.js' }; cwd = 'E:\ds-docs' } | ConvertTo-Json -Compress) 'deny'
 Invoke-Hook 's Wf by name deep-research (bundled)' (@{ tool_name = 'Workflow'; tool_input = @{ name = 'deep-research' }; cwd = 'E:\ds-docs' } | ConvertTo-Json -Compress) 'deny'
 Invoke-Hook 't Wf real research script via scriptPath' (@{ tool_name = 'Workflow'; tool_input = @{ scriptPath = $researchScript }; cwd = 'E:\ds-docs' } | ConvertTo-Json -Compress) 'ask'
+Invoke-Hook 'v1 Wf agentType Explore + model opus' (Wf "await agent('p', { agentType: 'Explore', model: 'opus' });") 'deny'
+Invoke-Hook 'v2 Wf agentType implementer + model haiku' (Wf "await agent('p', { agentType: 'implementer', model: 'haiku' });") 'deny'
+Invoke-Hook 'v3 Wf agentType Explore + model sonnet' (Wf "await agent('p', { agentType: 'Explore', model: 'sonnet' });") 'ask'
+Invoke-Hook 'v4 Wf agentType implementer + model opus[1m]' (Wf "await agent('p', { agentType: 'implementer', model: 'opus[1m]' });") 'ask'
+# Saved-workflow resolution: only between the working directory and the repository root, then the personal directory.
+$fixture = Join-Path ([System.IO.Path]::GetTempPath()) ('dispatch-hook-fixture-' + [guid]::NewGuid().ToString('N'))
+foreach ($d in @('repo\sub', 'repo\.git', 'repo\.claude\workflows', '.claude\workflows', 'cfg\workflows')) { New-Item -ItemType Directory -Force -Path (Join-Path $fixture $d) | Out-Null }
+Set-Content -LiteralPath (Join-Path $fixture 'repo\.claude\workflows\inside.js') -Value "await agent('p', { model: 'sonnet' });"
+Set-Content -LiteralPath (Join-Path $fixture '.claude\workflows\above.js') -Value "await agent('p', { model: 'sonnet' });"
+Set-Content -LiteralPath (Join-Path $fixture 'cfg\workflows\personal.js') -Value "await agent('p', { model: 'sonnet' });"
+function WfName { param([string]$Name, [string]$Cwd) return (@{ tool_name = 'Workflow'; tool_input = @{ name = $Name }; cwd = $Cwd } | ConvertTo-Json -Compress) }
+Invoke-Hook 'x1 Wf by name inside the repo' (WfName 'inside' (Join-Path $fixture 'repo\sub')) 'ask'
+Invoke-Hook 'x2 Wf by name above the repo root' (WfName 'above' (Join-Path $fixture 'repo\sub')) 'deny'
+$env:CLAUDE_CONFIG_DIR = Join-Path $fixture 'cfg'
+Invoke-Hook 'x3 Wf by name personal via CLAUDE_CONFIG_DIR' (WfName 'personal' (Join-Path $fixture 'repo\sub')) 'ask'
+Remove-Item -Path Env:CLAUDE_CONFIG_DIR
+Invoke-Hook 'x4 Wf by name personal without CLAUDE_CONFIG_DIR' (WfName 'personal' (Join-Path $fixture 'repo\sub')) 'deny'
+Remove-Item -LiteralPath $fixture -Recurse -Force
 Invoke-Hook 'u Bash passthrough' (@{ tool_name = 'Bash'; tool_input = @{ command = 'ls' } } | ConvertTo-Json -Compress) 'passthrough'

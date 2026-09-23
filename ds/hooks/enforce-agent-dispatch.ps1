@@ -3,6 +3,16 @@ $ErrorActionPreference = 'Stop'
 $DefinedRoles = @('Explore', 'planner', 'implementer', 'qa', 'reviewer')
 $FableRoles = @('reviewer-fable', 'critical-implementer', 'critical-reviewer')
 $ModelAliasPattern = '\A(haiku|sonnet|opus)(\[1m\])?\z'
+$RolePolicies = @{
+  'Explore' = @{ model = @('haiku', 'sonnet') }
+  'planner' = @{ model = @('sonnet', 'opus') }
+  'implementer' = @{ model = @('opus', 'sonnet') }
+  'qa' = @{ model = @('sonnet', 'opus') }
+  'reviewer' = @{ model = @('sonnet', 'opus') }
+  'reviewer-fable' = @{ model = @('fable') }
+  'critical-implementer' = @{ model = @('fable') }
+  'critical-reviewer' = @{ model = @('fable') }
+}
 $RegexKeywords = @('return', 'typeof', 'instanceof', 'in', 'of', 'new', 'delete', 'void', 'throw', 'case', 'do', 'else', 'yield', 'await')
 
 function Write-Decision {
@@ -170,14 +180,20 @@ function Find-WorkflowScriptByName {
 
   if ($Name -notmatch '\A[A-Za-z0-9_.-]+\z' -or $Name -match '\.\.') { return $null }
   $candidates = New-Object System.Collections.Generic.List[string]
+  # Claude Code loads project workflows only from the .claude\workflows directories between the working
+  # directory and the repository root (the first ancestor holding .git, a directory or a file), nearest
+  # first; a same-named script above the root is not the one that runs, so the walk stops there.
   $dir = $StartDirectory
   while (-not [string]::IsNullOrWhiteSpace($dir)) {
     $candidates.Add((Join-Path $dir ".claude\workflows\$Name.js"))
+    if (Test-Path -LiteralPath (Join-Path $dir '.git')) { break }
     $parent = Split-Path -Path $dir -Parent
     if ([string]::IsNullOrWhiteSpace($parent) -or $parent -eq $dir) { break }
     $dir = $parent
   }
-  $candidates.Add((Join-Path $env:USERPROFILE ".claude\workflows\$Name.js"))
+  # The personal location follows CLAUDE_CONFIG_DIR when it is set.
+  $configDir = if ([string]::IsNullOrWhiteSpace($env:CLAUDE_CONFIG_DIR)) { Join-Path $env:USERPROFILE '.claude' } else { $env:CLAUDE_CONFIG_DIR }
+  $candidates.Add((Join-Path $configDir "workflows\$Name.js"))
   foreach ($candidate in $candidates) {
     if (Test-Path -LiteralPath $candidate -PathType Leaf) { return $candidate }
   }
@@ -320,6 +336,12 @@ function Test-WorkflowScript {
     if (($null -ne $model -and $model -match 'fable') -or ($null -ne $agentType -and $agentType -in $FableRoles)) {
       Write-Decision -Decision 'deny' -Reason "Workflow agent call #$callNumber uses Fable. Workflow scripts may not use fable or a Fable role; run a Fable critical role serially through the Agent tool after the workflow has consolidated evidence."
     }
+    if ($null -ne $model -and $null -ne $agentType -and $RolePolicies.ContainsKey($agentType)) {
+      $allowed = @($RolePolicies[$agentType].model)
+      if (($model -replace '\[1m\]\z', '') -notin $allowed) {
+        Write-Decision -Decision 'deny' -Reason "Workflow agent call #$callNumber pairs agentType '$agentType' with model '$model'; that role allows '$($allowed -join ' or ')'. A script-level model overrides the definition, so the pair must stay inside the role's allowed set."
+      }
+    }
     if ($null -ne $model -and $model -match $ModelAliasPattern) { continue }
     if ($null -ne $agentType -and $agentType -in $DefinedRoles) { continue }
     $modelText = if ($null -ne $model) { "'$model'" } else { 'nothing' }
@@ -376,7 +398,7 @@ if ($call.tool_name -eq 'Workflow') {
       if ([string]::IsNullOrWhiteSpace($path) -and -not [string]::IsNullOrWhiteSpace($name)) {
         $path = Find-WorkflowScriptByName -Name $name -StartDirectory $workingDirectory
         if ([string]::IsNullOrWhiteSpace($path)) {
-          Write-Decision -Decision 'deny' -Reason "Saved workflow '$name' was not found under any .claude\workflows directory from the working directory up or under ~\.claude\workflows, so it is a bundled or plugin workflow whose agent models cannot be inspected. Pass an inline script with explicit models instead."
+          Write-Decision -Decision 'deny' -Reason "Saved workflow '$name' was not found under any .claude\workflows directory between the working directory and the repository root or under the personal workflows directory (CLAUDE_CONFIG_DIR, else ~\.claude), so it is a bundled or plugin workflow whose agent models cannot be inspected. Pass an inline script with explicit models instead."
         }
       }
       if (-not [string]::IsNullOrWhiteSpace($path) -and (Test-Path -LiteralPath $path -PathType Leaf)) {
@@ -440,16 +462,7 @@ if ([string]::IsNullOrWhiteSpace($model)) {
   Write-Decision -Decision 'deny' -Reason "Agent '$agentType' must specify an explicit model. Model inheritance is prohibited."
 }
 
-$policies = @{
-  'Explore' = @{ model = @('haiku', 'sonnet') }
-  'planner' = @{ model = @('sonnet', 'opus') }
-  'implementer' = @{ model = @('opus', 'sonnet') }
-  'qa' = @{ model = @('sonnet', 'opus') }
-  'reviewer' = @{ model = @('sonnet', 'opus') }
-  'reviewer-fable' = @{ model = @('fable') }
-  'critical-implementer' = @{ model = @('fable') }
-  'critical-reviewer' = @{ model = @('fable') }
-}
+$policies = $RolePolicies
 
 if ($policies.ContainsKey($agentType)) {
   $policy = $policies[$agentType]
