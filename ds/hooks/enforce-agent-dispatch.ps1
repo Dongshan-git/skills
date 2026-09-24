@@ -18,7 +18,7 @@ $RegexKeywords = @('return', 'typeof', 'instanceof', 'in', 'of', 'new', 'delete'
 function Write-Decision {
   param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet('deny', 'ask')]
+    [ValidateSet('deny', 'ask', 'allow')]
     [string]$Decision,
     [Parameter(Mandatory = $true)]
     [string]$Reason,
@@ -363,6 +363,23 @@ function Resolve-AgentMeta {
   return (Get-Content -LiteralPath $meta.FullName -Raw | ConvertFrom-Json)
 }
 
+# Counts the Fable workers already started in this session by reading every agent-*.meta.json under the
+# session directory (Claude Code writes one per started subagent with its agentType and model). A denied
+# dispatch never gets a meta file, so denials do not count. Returns $null when the session directory
+# cannot be resolved, which the caller treats as "cannot verify" and denies.
+function Get-FableStartCount {
+  param([string]$TranscriptPath, [string]$SessionId)
+  if ([string]::IsNullOrWhiteSpace($TranscriptPath) -or $SessionId -notmatch '\A[0-9A-Za-z-]+\z') { return $null }
+  $sessionDir = Join-Path (Split-Path -Path $TranscriptPath -Parent) $SessionId
+  if (-not (Test-Path -LiteralPath $sessionDir -PathType Container)) { return 0 }
+  $count = 0
+  foreach ($metaFile in Get-ChildItem -LiteralPath $sessionDir -Recurse -Filter 'agent-*.meta.json' -File -ErrorAction SilentlyContinue) {
+    try { $meta = Get-Content -LiteralPath $metaFile.FullName -Raw | ConvertFrom-Json } catch { continue }
+    if (([string]$meta.model) -match 'fable' -or ([string]$meta.agentType) -in $FableRoles) { $count++ }
+  }
+  return $count
+}
+
 # Claude Code writes the hook input as UTF-8. Windows PowerShell decodes [Console]::In with the console
 # code page (GBK on this machine), where a multibyte sequence can swallow the following quote and
 # corrupt the JSON, so read the raw bytes as UTF-8 explicitly and emit UTF-8 as well.
@@ -412,7 +429,7 @@ if ($call.tool_name -eq 'Workflow') {
     Write-Decision -Decision 'deny' -Reason 'Workflow script could not be read by the dispatch policy hook, so its agent models cannot be verified. Pass the script inline or a readable scriptPath.'
   }
   $calls = Test-WorkflowScript -Script $script
-  Write-Decision -Decision 'ask' -Reason "Workflow with $calls agent call(s); every call names an approved model. Confirm the task level, total starts, peak concurrency, and rerun policy." -Context "Dispatch policy: this workflow declares $calls agent call(s), each with an explicit model. Before relying on its results, record the task level, cumulative starts, peak concurrency, and rerun policy in the ledger; a relaunch or resume counts every rerun agent as a new start."
+  Write-Decision -Decision 'allow' -Reason "Workflow with $calls agent call(s); every call names an approved model." -Context "Dispatch policy: this workflow declares $calls agent call(s), each with an explicit model. Before relying on its results, record the task level, cumulative starts, peak concurrency, and rerun policy in the ledger; a relaunch or resume counts every rerun agent as a new start."
 }
 
 if ($call.tool_name -eq 'SendMessage') {
@@ -460,6 +477,30 @@ if ($agentType -eq 'fork') {
 
 if ([string]::IsNullOrWhiteSpace($model)) {
   Write-Decision -Decision 'deny' -Reason "Agent '$agentType' must specify an explicit model. Model inheritance is prohibited."
+}
+
+# Per-session Fable cap. Every Fable start (reviewer-fable, critical-implementer, critical-reviewer, or any
+# call naming the fable model) is counted against CLAUDE_FABLE_MAX_PER_SESSION (default 7, set by the
+# maintainer on 2026-09-24 for the workbench thirteen-items program: five reviewer-fable full-diff reviews
+# plus two critical-reviewer audits across B1-B6, so one marathon session can carry the whole plan). The
+# count is read from the session's agent meta files, so it survives context compaction and cannot be
+# talked down inside the conversation.
+if ($modelBase -eq 'fable' -or $agentType -in $FableRoles) {
+  $fableCap = 7
+  if (-not [string]::IsNullOrWhiteSpace($env:CLAUDE_FABLE_MAX_PER_SESSION) -and $env:CLAUDE_FABLE_MAX_PER_SESSION -match '\A\d{1,3}\z') {
+    $fableCap = [int]$env:CLAUDE_FABLE_MAX_PER_SESSION
+  }
+  try {
+    $fableUsed = Get-FableStartCount -TranscriptPath ([string]$call.transcript_path) -SessionId ([string]$call.session_id)
+  } catch {
+    Fail-Closed "Agent dispatch policy could not count Fable starts: $($_.Exception.Message)"
+  }
+  if ($null -eq $fableUsed) {
+    Write-Decision -Decision 'deny' -Reason "Fable dispatch '$agentType' cannot be counted: the session directory could not be resolved from transcript_path/session_id, so the per-session Fable cap cannot be enforced."
+  }
+  if ($fableUsed -ge $fableCap) {
+    Write-Decision -Decision 'deny' -Reason "Fable cap reached: $fableUsed Fable worker(s) already started in this session and CLAUDE_FABLE_MAX_PER_SESSION is $fableCap. Use an opus role, or have the user raise the cap for this session."
+  }
 }
 
 $policies = $RolePolicies

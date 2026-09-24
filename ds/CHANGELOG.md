@@ -8,6 +8,15 @@ Tracks changes to the personal Claude Code dispatch configuration in this direct
 
 Entry format: Claude Code version, date, what changed here, and which official facts drove the change.
 
+## 2.1.281 (2026-09-25)
+
+Hook-only changes; the official docs were not re-verified.
+
+- `hooks/enforce-agent-dispatch.ps1`: a compliant Workflow now returns `allow` instead of `ask`. The `ask` only prompted outside bypass sessions (the machine default is auto), so whether to start a workflow is left to the model-side opt-in rule; every `deny` path is unchanged, and SendMessage and untyped Agent calls still ask.
+- `hooks/enforce-agent-dispatch.ps1`: per-session Fable cap, added on the machine on 2026-09-24 and synced here now. Fable starts are counted from the session's `agent-*.meta.json` files and denied at `CLAUDE_FABLE_MAX_PER_SESSION` (default 7), or when the session directory cannot be resolved.
+- `hooks/tests/*.ps1`: the 38 compliant Workflow cases expect `allow`; all 116 cases pass.
+- `README.md`: hook row.
+
 ## 2.1.280 (2026-09-23)
 
 Re-verified the three posts and this configuration against the official docs (downloaded as markdown) and the 2.1.271-2.1.280 changelog (568 entries): six workflow readers (a Sonnet changelog pass, an Opus env-vars and settings audit, one Opus and two Sonnet post readers, an Opus config review that ran the 108 hook cases), then an Opus and a Sonnet adversarial pass; 53 findings, 37 confirmed, 14 downgraded, 2 refuted, 3 added by the verifiers. The Opus 5.5 release in 2.1.280 is the change that moved facts under this configuration.
