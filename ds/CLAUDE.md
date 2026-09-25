@@ -30,3 +30,7 @@
 - Stage, commit, push, publish, and destructive actions require explicit user authorization in the current conversation.
 - An active goal does not expand authorization. When it conflicts with a later instruction or reaches an unauthorized action, follow the later instruction, name the blocked action, and ask the user to run `/goal clear` or replace the condition.
 - Group authorized commits by one coherent, shippable theme. A commit is not a progress checkpoint.
+
+## Compact instructions
+
+- When the conversation is compacted, keep verbatim: the task statement and its acceptance criteria; the verification commands and their latest results; every changed file and what changed in it; pending authorizations and blocked actions; the dispatch ledger (level, starts used, remaining budget); the path of the current handoff file. Drop tool output that a listed file or command reproduces.

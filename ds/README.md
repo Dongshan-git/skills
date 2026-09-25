@@ -1,13 +1,15 @@
 # ds: personal Claude Code dispatch configuration
 
-Claude Code version: 2.1.280 (config re-verified 2026-09-23; the workflow-authoring override is derived from the 2.1.267 bundled text extracted from the binary and re-diffed against 2.1.280, which differs only in runtime placeholders). Source of truth for the files installed under `~/.claude` on my machine. Everything model-facing is English; the rationale and the review that produced these files live on the blog:
+Claude Code version: 2.1.282 (config re-verified 2026-09-25 against the 2.1.281 and 2.1.282 changelogs; the workflow-authoring override is derived from the 2.1.267 bundled text extracted from the binary and re-diffed against 2.1.282, which differs only in runtime placeholders). Source of truth for the files installed under `~/.claude` on my machine. Everything model-facing is English; the rationale and the review that produced these files live on the blog:
 
 - https://docs.dsdev.cn/blog/fable-5-workflow/
 - https://docs.dsdev.cn/blog/claude-code-agent-workflow-prompts/
+- https://docs.dsdev.cn/blog/claude-code-operating-rules/
 
 | Path | Installs to | Purpose |
 | --- | --- | --- |
-| `CLAUDE.md` | `~/.claude/CLAUDE.md` | Global engineering contract, kept small because every session and worker loads it |
+| `CLAUDE.md` | `~/.claude/CLAUDE.md` | Global engineering contract, kept small because every session and worker loads it; its `Compact instructions` section tells manual and automatic compaction what to keep |
+| `skills/handoff/SKILL.md` | `~/.claude/skills/handoff/` | `/handoff` writes `~/.claude/projects/<project>/handoff/HANDOFF.md` in a fixed ten-part structure before a planned break or session switch, while the prompt cache is still warm |
 | `skills/dispatch-policy/SKILL.md` | `~/.claude/skills/dispatch-policy/` | L0-L4 budgets in Opus-equivalent starts (haiku 0.25, sonnet 0.5, opus 1, fable 2.5; list-price ratios to Opus 5.5, the `opus` alias since 2.1.280), role-to-model routing, Fable gate; independent starts run concurrently; loaded before the first delegation |
 | `skills/workflow-authoring/SKILL.md` | `~/.claude/skills/workflow-authoring/` | Personal override of the bundled skill: every `agent()` must name its model. Derived from the 2.1.267 bundled text (a template literal inside `claude.exe`), unchanged through 2.1.280; re-diff after upgrades. Not injected by `/effort ultracode`, which loads the bundled text |
 | `agents/*.md` | `~/.claude/agents/` | coordinator, Explore, planner, implementer, qa, reviewer, reviewer-fable, critical-implementer, critical-reviewer |

@@ -5,8 +5,20 @@ Tracks changes to the personal Claude Code dispatch configuration in this direct
 - https://docs.dsdev.cn/blog/fable-5-workflow/
 - https://docs.dsdev.cn/blog/claude-code-agent-workflow-prompts/
 - https://docs.dsdev.cn/blog/personal-ai-agent-prompt-tips/
+- https://docs.dsdev.cn/blog/claude-code-operating-rules/
 
 Entry format: Claude Code version, date, what changed here, and which official facts drove the change.
+
+## 2.1.282 (2026-09-25)
+
+Re-verified against the 2.1.281 and 2.1.282 changelogs and the prompt-caching, sessions, costs, goal, permission-modes, and model-config docs read the same day; the official docs were not re-downloaded in full. The bundled workflow-authoring text extracted from the 2.1.282 binary differs from the override only in the override's listed policy hunks and runtime placeholders; all 116 hook cases pass.
+
+- `CLAUDE.md`: new `Compact instructions` section so manual and automatic compaction keep the task and acceptance criteria, verification commands and results, changed files, pending authorizations, the dispatch ledger, and the handoff path.
+- `skills/handoff/SKILL.md`: new. `/handoff` writes `~/.claude/projects/<project>/handoff/HANDOFF.md` in a fixed ten-part structure before a planned break or session switch. The operating-rules post explains why the summary must be written while the prompt cache is warm: on a subscription the main conversation's cache lives one hour (five minutes on usage credits), and resuming a session over 100K tokens after a longer break reprocesses the full history once whichever option the resume dialog gets.
+- `skills/workflow-authoring/SKILL.md`: version line moved to 2.1.282.
+- `settings.json` (machine only, not part of the snippet): `model` switched from `claude-fable-5-1[1m]` to the `opus` alias (Opus 5.5, native 1M window, effort high through `modelSettings`); Fable 5.1 stays at `xhigh` per model and is selected per session with `/model fable`. Decided with the user on 2026-09-25, together with "no hard cap on worker count" (the hook keeps checking models only).
+- `README.md`: version line, companion post list, the `CLAUDE.md` row, the new `handoff` row.
+- Recorded, not changed: 2.1.281 makes AGENTS.md work in sessions with telemetry off (the research post no longer lists it among the features `DISABLE_TELEMETRY=1` disables); 2.1.282 makes auto mode ask the server-side classifier by default when telemetry is off (`CLAUDE_CODE_AUTO_MODE_SERVER=0` opts out); `attribution: false` is a new shorthand that older versions reject by skipping the whole settings file, so the object form stays.
 
 ## 2.1.281 (2026-09-25)
 
