@@ -1,8 +1,15 @@
 $ErrorActionPreference = 'Continue'
 $hook = if ($env:HOOK_UNDER_TEST) { $env:HOOK_UNDER_TEST } else { 'C:\Users\DS\.claude\hooks\enforce-agent-dispatch.ps1' }
+# A throwaway session directory stands in for a real one, so SendMessage and Fable-count cases do not
+# depend on a session that the cleanup period may already have removed.
+$sessionRoot = Join-Path ([System.IO.Path]::GetTempPath()) ('dispatch-hook-session-' + [guid]::NewGuid().ToString('N'))
 $sessionId = 'f2fc05d6-e4ab-4142-a95b-4b645975a631'
-$transcript = "C:\Users\DS\.claude\projects\E--ds-docs\$sessionId.jsonl"
-$researchScript = 'C:\Users\DS\.claude\projects\E--ds-docs\f2fc05d6-e4ab-4142-a95b-4b645975a631\workflows\scripts\claude-code-deep-research-2-1-267-wf_902195b8-125.js'
+$transcript = Join-Path $sessionRoot "$sessionId.jsonl"
+$agentDir = Join-Path $sessionRoot "$sessionId\subagents\workflows\wf_fixture"
+New-Item -ItemType Directory -Force -Path $agentDir | Out-Null
+Set-Content -LiteralPath $transcript -Value ''
+Set-Content -LiteralPath (Join-Path $agentDir 'agent-a446350e4ace45639.meta.json') -Value '{"agentType":"workflow-subagent","description":"fixture","model":"opus"}'
+$researchScript = Join-Path $PSScriptRoot 'fixtures\research-workflow.js'
 
 function Invoke-Hook {
   param([string]$Name, [string]$Json, [string]$Expect)
@@ -33,6 +40,7 @@ function Invoke-Hook {
 function Wf { param([string]$Script) return (@{ tool_name = 'Workflow'; tool_input = @{ script = $Script }; cwd = 'E:\ds-docs'; session_id = $sessionId; transcript_path = $transcript } | ConvertTo-Json -Compress -Depth 5) }
 function Sm { param([string]$To) return (@{ tool_name = 'SendMessage'; tool_input = @{ to = $To; message = 'hi' }; cwd = 'E:\ds-docs'; session_id = $sessionId; transcript_path = $transcript } | ConvertTo-Json -Compress -Depth 5) }
 function Ag { param([hashtable]$Fields) return (@{ tool_name = 'Agent'; tool_input = $Fields; cwd = 'E:\ds-docs' } | ConvertTo-Json -Compress -Depth 5) }
+function AgS { param([hashtable]$Fields) return (@{ tool_name = 'Agent'; tool_input = $Fields; cwd = 'E:\ds-docs'; session_id = $sessionId; transcript_path = $transcript } | ConvertTo-Json -Compress -Depth 5) }
 
 Invoke-Hook 'a Agent reviewer+sonnet' (Ag @{ subagent_type = 'reviewer'; model = 'sonnet'; prompt = 'x' }) 'passthrough'
 Invoke-Hook 'b Agent reviewer+fable' (Ag @{ subagent_type = 'reviewer'; model = 'fable'; prompt = 'x' }) 'deny'
@@ -74,12 +82,31 @@ Invoke-Hook 'v1 Wf agentType Explore + model opus' (Wf "await agent('p', { agent
 Invoke-Hook 'v2 Wf agentType implementer + model haiku' (Wf "await agent('p', { agentType: 'implementer', model: 'haiku' });") 'deny'
 Invoke-Hook 'v3 Wf agentType Explore + model sonnet' (Wf "await agent('p', { agentType: 'Explore', model: 'sonnet' });") 'allow'
 Invoke-Hook 'v4 Wf agentType implementer + model opus[1m]' (Wf "await agent('p', { agentType: 'implementer', model: 'opus[1m]' });") 'allow'
-# Saved-workflow resolution: only between the working directory and the repository root, then the personal directory.
+# Per-call effort and name on Fable roles (Agent tool effort since 2.1.292).
+Invoke-Hook 'w1 Agent reviewer-fable fresh session' (AgS @{ subagent_type = 'reviewer-fable'; model = 'fable'; prompt = 'x' }) 'passthrough'
+Invoke-Hook 'w2 Agent reviewer-fable with effort high' (AgS @{ subagent_type = 'reviewer-fable'; model = 'fable'; effort = 'high'; prompt = 'x' }) 'deny'
+Invoke-Hook 'w3 Agent critical-reviewer with effort low' (AgS @{ subagent_type = 'critical-reviewer'; model = 'fable'; effort = 'low'; prompt = 'x' }) 'deny'
+Invoke-Hook 'w4 Agent critical-implementer with name' (AgS @{ subagent_type = 'critical-implementer'; model = 'fable'; name = 'helper'; prompt = 'x' }) 'deny'
+Invoke-Hook 'w5 Agent reviewer sonnet with effort xhigh' (Ag @{ subagent_type = 'reviewer'; model = 'sonnet'; effort = 'xhigh'; prompt = 'x' }) 'passthrough'
+Invoke-Hook 'w6 Agent implementer opus with name' (Ag @{ subagent_type = 'implementer'; model = 'opus'; name = 'impl'; prompt = 'x' }) 'passthrough'
+# More than one script source in one Workflow call.
+Invoke-Hook 'y1 Wf script + scriptPath' (@{ tool_name = 'Workflow'; tool_input = @{ script = "await agent('p', { model: 'sonnet' });"; scriptPath = $researchScript }; cwd = 'E:\ds-docs' } | ConvertTo-Json -Compress) 'deny'
+Invoke-Hook 'y2 Wf script + name' (@{ tool_name = 'Workflow'; tool_input = @{ script = "await agent('p', { model: 'sonnet' });"; name = 'inside' }; cwd = 'E:\ds-docs' } | ConvertTo-Json -Compress) 'deny'
+Invoke-Hook 'y3 Wf scriptPath + name' (@{ tool_name = 'Workflow'; tool_input = @{ scriptPath = $researchScript; name = 'inside' }; cwd = 'E:\ds-docs' } | ConvertTo-Json -Compress) 'deny'
+# Saved-workflow resolution: by meta.name, only between the working directory and the repository root, then the personal directory.
 $fixture = Join-Path ([System.IO.Path]::GetTempPath()) ('dispatch-hook-fixture-' + [guid]::NewGuid().ToString('N'))
 foreach ($d in @('repo\sub', 'repo\.git', 'repo\.claude\workflows', '.claude\workflows', 'cfg\workflows')) { New-Item -ItemType Directory -Force -Path (Join-Path $fixture $d) | Out-Null }
-Set-Content -LiteralPath (Join-Path $fixture 'repo\.claude\workflows\inside.js') -Value "await agent('p', { model: 'sonnet' });"
-Set-Content -LiteralPath (Join-Path $fixture '.claude\workflows\above.js') -Value "await agent('p', { model: 'sonnet' });"
-Set-Content -LiteralPath (Join-Path $fixture 'cfg\workflows\personal.js') -Value "await agent('p', { model: 'sonnet' });"
+function SavedWf { param([string]$MetaName, [string]$Model) return "export const meta = { name: '$MetaName', description: 'fixture' }`nawait agent('p', { model: '$Model' });" }
+Set-Content -LiteralPath (Join-Path $fixture 'repo\.claude\workflows\inside.js') -Value (SavedWf 'inside' 'sonnet')
+Set-Content -LiteralPath (Join-Path $fixture '.claude\workflows\above.js') -Value (SavedWf 'above' 'sonnet')
+Set-Content -LiteralPath (Join-Path $fixture 'cfg\workflows\personal.js') -Value (SavedWf 'personal' 'sonnet')
+Set-Content -LiteralPath (Join-Path $fixture 'repo\.claude\workflows\renamed-file.js') -Value (SavedWf 'by-meta' 'haiku')
+Set-Content -LiteralPath (Join-Path $fixture 'repo\.claude\workflows\decoy.js') -Value (SavedWf 'decoy-meta' 'sonnet')
+Set-Content -LiteralPath (Join-Path $fixture 'repo\.claude\workflows\real.js') -Value (SavedWf 'decoy' 'fable')
+Set-Content -LiteralPath (Join-Path $fixture 'repo\.claude\workflows\dup-a.js') -Value (SavedWf 'dup' 'sonnet')
+Set-Content -LiteralPath (Join-Path $fixture 'repo\.claude\workflows\dup-b.js') -Value (SavedWf 'dup' 'sonnet')
+Set-Content -LiteralPath (Join-Path $fixture 'repo\.claude\workflows\no-meta.js') -Value "await agent('p', { model: 'sonnet' });"
+Set-Content -LiteralPath (Join-Path $fixture 'repo\.claude\workflows\phases-first.js') -Value "export const meta = {`n  phases: [{ title: 'A', name: 'nested' }],`n  description: 'has name: wrong inside a string',`n  name: 'phases-first',`n}`nawait agent('p', { model: 'sonnet' });"
 function WfName { param([string]$Name, [string]$Cwd) return (@{ tool_name = 'Workflow'; tool_input = @{ name = $Name }; cwd = $Cwd } | ConvertTo-Json -Compress) }
 Invoke-Hook 'x1 Wf by name inside the repo' (WfName 'inside' (Join-Path $fixture 'repo\sub')) 'allow'
 Invoke-Hook 'x2 Wf by name above the repo root' (WfName 'above' (Join-Path $fixture 'repo\sub')) 'deny'
@@ -87,5 +114,11 @@ $env:CLAUDE_CONFIG_DIR = Join-Path $fixture 'cfg'
 Invoke-Hook 'x3 Wf by name personal via CLAUDE_CONFIG_DIR' (WfName 'personal' (Join-Path $fixture 'repo\sub')) 'allow'
 Remove-Item -Path Env:CLAUDE_CONFIG_DIR
 Invoke-Hook 'x4 Wf by name personal without CLAUDE_CONFIG_DIR' (WfName 'personal' (Join-Path $fixture 'repo\sub')) 'deny'
+Invoke-Hook 'x5 Wf by meta.name whose file name differs' (WfName 'by-meta' (Join-Path $fixture 'repo\sub')) 'allow'
+Invoke-Hook 'x6 Wf name matches a decoy file, meta.name owner uses fable' (WfName 'decoy' (Join-Path $fixture 'repo\sub')) 'deny'
+Invoke-Hook 'x7 Wf two scripts declare the same meta.name' (WfName 'dup' (Join-Path $fixture 'repo\sub')) 'deny'
+Invoke-Hook 'x8 Wf file name only, no meta block' (WfName 'no-meta' (Join-Path $fixture 'repo\sub')) 'deny'
+Invoke-Hook 'x9 Wf meta.name after phases and strings mentioning name:' (WfName 'phases-first' (Join-Path $fixture 'repo\sub')) 'allow'
 Remove-Item -LiteralPath $fixture -Recurse -Force
 Invoke-Hook 'u Bash passthrough' (@{ tool_name = 'Bash'; tool_input = @{ command = 'ls' } } | ConvertTo-Json -Compress) 'passthrough'
+Remove-Item -LiteralPath $sessionRoot -Recurse -Force

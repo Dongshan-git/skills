@@ -3,7 +3,7 @@ name: Explore
 description: Performs cheap read-only discovery for one narrow repository or documentation question.
 tools: Read, Grep, Glob, WebFetch, WebSearch
 model: haiku
-effort: low
+effort: medium
 permissionMode: plan
 ---
 

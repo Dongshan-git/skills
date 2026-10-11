@@ -175,17 +175,52 @@ function Get-OptionLiteral {
   return $literal.Value
 }
 
+# Returns the plain-literal meta.name of a saved workflow script, or $null when the script has no
+# `export const meta = { ... }` object whose depth-1 unquoted `name` key holds a plain quoted literal.
+function Get-WorkflowMetaName {
+  param([string]$Source)
+  if ([string]::IsNullOrWhiteSpace($Source)) { return $null }
+  $mask = Get-CodeMask -Source $Source
+  if ($null -eq $mask) { return $null }
+  $codeChars = New-Object char[] $Source.Length
+  for ($i = 0; $i -lt $Source.Length; $i++) { $codeChars[$i] = if ($mask[$i] -eq 'c') { $Source[$i] } else { ' ' } }
+  $code = -join $codeChars
+  $metaMatch = [regex]::Match($code, '(?<![A-Za-z0-9_$.])export\s+const\s+meta\s*=\s*\{')
+  if (-not $metaMatch.Success) { return $null }
+  $start = $metaMatch.Index + $metaMatch.Length
+  $depthOneChars = New-Object char[] ($code.Length - $start)
+  $depth = 1
+  $j = $start
+  while ($j -lt $code.Length -and $depth -gt 0) {
+    $c = $code[$j]
+    $depthOneChars[$j - $start] = ' '
+    if ($c -eq '{' -or $c -eq '[' -or $c -eq '(') { $depth++ }
+    elseif ($c -eq '}' -or $c -eq ']' -or $c -eq ')') { $depth-- }
+    elseif ($depth -eq 1) { $depthOneChars[$j - $start] = $c }
+    $j++
+  }
+  if ($depth -ne 0) { return $null }
+  $depthOneView = (-join $depthOneChars).Substring(0, $j - $start)
+  $nameKeys = [regex]::Matches($depthOneView, '(?<![A-Za-z0-9_$])name\s*:')
+  if ($nameKeys.Count -ne 1) { return $null }
+  $literal = Read-LiteralValue -Source $Source -Index ($start + $nameKeys[0].Index + $nameKeys[0].Length)
+  if ($null -eq $literal) { return $null }
+  return $literal.Value
+}
+
+# Returns every saved workflow script whose meta.name equals $Name. Claude Code keys saved workflows by
+# meta.name, not by file name, and skips a script whose meta it cannot parse.
 function Find-WorkflowScriptByName {
   param([string]$Name, [string]$StartDirectory)
 
-  if ($Name -notmatch '\A[A-Za-z0-9_.-]+\z' -or $Name -match '\.\.') { return $null }
-  $candidates = New-Object System.Collections.Generic.List[string]
+  if ($Name -notmatch '\A[A-Za-z0-9_.-]+\z' -or $Name -match '\.\.') { return @() }
+  $directories = New-Object System.Collections.Generic.List[string]
   # Claude Code loads project workflows only from the .claude\workflows directories between the working
   # directory and the repository root (the first ancestor holding .git, a directory or a file), nearest
-  # first; a same-named script above the root is not the one that runs, so the walk stops there.
+  # first; a script above the root is not one that runs, so the walk stops there.
   $dir = $StartDirectory
   while (-not [string]::IsNullOrWhiteSpace($dir)) {
-    $candidates.Add((Join-Path $dir ".claude\workflows\$Name.js"))
+    $directories.Add((Join-Path $dir '.claude\workflows'))
     if (Test-Path -LiteralPath (Join-Path $dir '.git')) { break }
     $parent = Split-Path -Path $dir -Parent
     if ([string]::IsNullOrWhiteSpace($parent) -or $parent -eq $dir) { break }
@@ -193,11 +228,15 @@ function Find-WorkflowScriptByName {
   }
   # The personal location follows CLAUDE_CONFIG_DIR when it is set.
   $configDir = if ([string]::IsNullOrWhiteSpace($env:CLAUDE_CONFIG_DIR)) { Join-Path $env:USERPROFILE '.claude' } else { $env:CLAUDE_CONFIG_DIR }
-  $candidates.Add((Join-Path $configDir "workflows\$Name.js"))
-  foreach ($candidate in $candidates) {
-    if (Test-Path -LiteralPath $candidate -PathType Leaf) { return $candidate }
+  $directories.Add((Join-Path $configDir 'workflows'))
+  $found = New-Object System.Collections.Generic.List[string]
+  foreach ($directory in $directories) {
+    if (-not (Test-Path -LiteralPath $directory -PathType Container)) { continue }
+    foreach ($file in Get-ChildItem -LiteralPath $directory -Filter '*.js' -File) {
+      if ((Get-WorkflowMetaName -Source (Get-Content -LiteralPath $file.FullName -Raw)) -ceq $Name) { $found.Add($file.FullName) }
+    }
   }
-  return $null
+  return $found.ToArray()
 }
 
 function Test-WorkflowScript {
@@ -408,15 +447,26 @@ if ([string]::IsNullOrWhiteSpace($workingDirectory)) { $workingDirectory = (Get-
 if ($call.tool_name -eq 'Workflow') {
   $script = $null
   if ($call.tool_input.script -is [string]) { $script = [string]$call.tool_input.script }
+  $path = [string]$call.tool_input.scriptPath
+  $name = [string]$call.tool_input.name
+  # The Workflow input documentation says scriptPath takes precedence over script and name, while Claude
+  # Code 2.1.296 runs the inline script when script and scriptPath are both present, so with more than one
+  # source the policy cannot tell which script it would approve.
+  $sources = @($script, $path, $name) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+  if (@($sources).Count -gt 1) {
+    Write-Decision -Decision 'deny' -Reason 'Workflow call passes more than one of script, scriptPath, and name, and the documented and observed precedence disagree, so the policy cannot tell which script would run. Pass exactly one of them.'
+  }
   if ([string]::IsNullOrWhiteSpace($script)) {
-    $path = [string]$call.tool_input.scriptPath
-    $name = [string]$call.tool_input.name
     try {
       if ([string]::IsNullOrWhiteSpace($path) -and -not [string]::IsNullOrWhiteSpace($name)) {
-        $path = Find-WorkflowScriptByName -Name $name -StartDirectory $workingDirectory
-        if ([string]::IsNullOrWhiteSpace($path)) {
-          Write-Decision -Decision 'deny' -Reason "Saved workflow '$name' was not found under any .claude\workflows directory between the working directory and the repository root or under the personal workflows directory (CLAUDE_CONFIG_DIR, else ~\.claude), so it is a bundled or plugin workflow whose agent models cannot be inspected. Pass an inline script with explicit models instead."
+        $matchesByName = @(Find-WorkflowScriptByName -Name $name -StartDirectory $workingDirectory)
+        if ($matchesByName.Count -eq 0) {
+          Write-Decision -Decision 'deny' -Reason "No saved workflow with meta.name '$name' was found under any .claude\workflows directory between the working directory and the repository root or under the personal workflows directory (CLAUDE_CONFIG_DIR, else ~\.claude), so it is a bundled or plugin workflow, or its meta.name is not a plain literal, and its agent models cannot be inspected. Pass an inline script with explicit models instead."
         }
+        if ($matchesByName.Count -gt 1) {
+          Write-Decision -Decision 'deny' -Reason "More than one saved workflow declares meta.name '$name' ($($matchesByName -join ', ')), so the policy cannot be sure which one runs. Rename or remove the duplicate, or pass the script inline."
+        }
+        $path = $matchesByName[0]
       }
       if (-not [string]::IsNullOrWhiteSpace($path) -and (Test-Path -LiteralPath $path -PathType Leaf)) {
         $script = Get-Content -LiteralPath $path -Raw
@@ -486,6 +536,18 @@ if ([string]::IsNullOrWhiteSpace($model)) {
 # count is read from the session's agent meta files, so it survives context compaction and cannot be
 # talked down inside the conversation.
 if ($modelBase -eq 'fable' -or $agentType -in $FableRoles) {
+  # Since 2.1.292 the Agent tool takes a per-call effort that overrides the definition's. The budget weighs
+  # reviewer-fable at its defined low effort and the critical roles at high, so an override would change a
+  # Fable start's cost without changing its weight.
+  $effortOverride = [string]$call.tool_input.effort
+  if (-not [string]::IsNullOrWhiteSpace($effortOverride)) {
+    Write-Decision -Decision 'deny' -Reason "Fable worker '$agentType' must run at its definition's effort, which its budget weight assumes; the call passes effort '$effortOverride'. Dispatch it without effort, or use an opus role at the effort you need."
+  }
+  # A name makes a running agent addressable by SendMessage, which would let a custom name slip past the
+  # role-name check that keeps Fable workers from being resumed.
+  if (-not [string]::IsNullOrWhiteSpace([string]$call.tool_input.name)) {
+    Write-Decision -Decision 'deny' -Reason "Fable worker '$agentType' may not take a name: Fable workers are never resumed, and a name would make it addressable by SendMessage. Dispatch it without name."
+  }
   $fableCap = 7
   if (-not [string]::IsNullOrWhiteSpace($env:CLAUDE_FABLE_MAX_PER_SESSION) -and $env:CLAUDE_FABLE_MAX_PER_SESSION -match '\A\d{1,3}\z') {
     $fableCap = [int]$env:CLAUDE_FABLE_MAX_PER_SESSION
@@ -525,4 +587,4 @@ if ($agentType -like 'codex:*') {
   exit 0
 }
 
-Write-Decision -Decision 'ask' -Reason "Agent type '$agentType' has no role definition and inherits the main-session effort level." -Context "Dispatch policy: agent type '$agentType' has no role definition, so it inherits the main-session effort level. Prefer a defined role (Explore, planner, implementer, qa, reviewer, reviewer-fable) that pins its own effort, and count this dispatch as a worker start."
+Write-Decision -Decision 'ask' -Reason "Agent type '$agentType' has no role definition, so its effort comes from the call's effort parameter or else the session's effort settings for its model." -Context "Dispatch policy: agent type '$agentType' has no role definition, so its effort comes from the call's effort parameter or else the session's effort settings for its model. Prefer a defined role (Explore, planner, implementer, qa, reviewer, reviewer-fable) that pins its own effort, and count this dispatch as a worker start."

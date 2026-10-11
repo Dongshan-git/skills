@@ -2,8 +2,13 @@
 # $env:HOOK_ONLY_FUNCTIONS = '1' is not supported, so the helper is duplicated here.
 $ErrorActionPreference = 'Continue'
 $hook = if ($env:HOOK_UNDER_TEST) { $env:HOOK_UNDER_TEST } else { 'C:\Users\DS\.claude\hooks\enforce-agent-dispatch.ps1' }
+$sessionRoot = Join-Path ([System.IO.Path]::GetTempPath()) ('dispatch-hook-session-' + [guid]::NewGuid().ToString('N'))
 $sessionId = 'f2fc05d6-e4ab-4142-a95b-4b645975a631'
-$transcript = "C:\Users\DS\.claude\projects\E--ds-docs\$sessionId.jsonl"
+$transcript = Join-Path $sessionRoot "$sessionId.jsonl"
+New-Item -ItemType Directory -Force -Path (Join-Path $sessionRoot "$sessionId\subagents\workflows\wf_fixture") | Out-Null
+Set-Content -LiteralPath $transcript -Value ''
+Set-Content -LiteralPath (Join-Path $sessionRoot "$sessionId\subagents\workflows\wf_fixture\agent-a446350e4ace45639.meta.json") -Value '{"agentType":"workflow-subagent","description":"fixture","model":"opus"}'
+$researchScript = Join-Path $PSScriptRoot 'fixtures\research-workflow.js'
 
 function Invoke-Hook {
   param([string]$Name, [string]$Json, [string]$Expect)
@@ -105,4 +110,5 @@ Invoke-Hook 'S3e new Function' (Wf "const f = new Function('return agent')(); aw
 Invoke-Hook 'S3f dynamic import' (Wf "const m = await import('x'); await agent('b', { model: 'sonnet' });") 'deny'
 Invoke-Hook 'S3g field read on result still ask' (Wf "const r = await agent('p', { model: 'sonnet' });`nconsole.log(r.agent, r.workflow);") 'allow'
 Invoke-Hook 'S3h shorthand property denied' (Wf "const r = await agent('p', { model: 'sonnet' }); out.push({ agent });") 'deny'
-Invoke-Hook 'O8 real research script' (@{ tool_name = 'Workflow'; tool_input = @{ scriptPath = 'C:\Users\DS\.claude\projects\E--ds-docs\f2fc05d6-e4ab-4142-a95b-4b645975a631\workflows\scripts\claude-code-deep-research-2-1-267-wf_902195b8-125.js' }; cwd = 'E:\ds-docs' } | ConvertTo-Json -Compress) 'allow'
+Invoke-Hook 'O8 real research script' (@{ tool_name = 'Workflow'; tool_input = @{ scriptPath = $researchScript }; cwd = 'E:\ds-docs' } | ConvertTo-Json -Compress) 'allow'
+Remove-Item -LiteralPath $sessionRoot -Recurse -Force

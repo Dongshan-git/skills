@@ -15,9 +15,10 @@
               "-NoProfile",
               "-ExecutionPolicy",
               "Bypass",
-              "-File",
-              "C:\\Users\\<user>\\.claude\\hooks\\enforce-agent-dispatch.ps1"
-            ]
+              "-Command",
+              "& 'C:\\Users\\<user>\\.claude\\hooks\\enforce-agent-dispatch.ps1'; if ($null -eq $LASTEXITCODE) { exit 1 }; exit $LASTEXITCODE"
+            ],
+            "onFailure": "block"
           }
         ]
       }

@@ -9,7 +9,7 @@ Token cost is a first-class constraint; wall-clock time is a separate one. Defau
 
 ## Task levels
 
-Budgets are counted in Opus-equivalent starts. Weigh each start by its model: haiku 0.25, sonnet 0.5, opus 1, fable 2.5 (the API list-price ratios to Opus 5.5, which `opus` resolves to since Claude Code 2.1.280; subscription usage draws down in roughly the same proportion). Two role exceptions: `reviewer-fable` at low effort weighs 1, on Anthropic's statement that Fable 5.1 at low is often competitive with Opus and Sonnet on cost per task; the critical Fable roles at high weigh 2.5. Effort changes a start's tokens but not its weight; keep effort in the role definition.
+Budgets are counted in Opus-equivalent starts. Weigh each start by its model: haiku 0.125, sonnet 0.5, opus 1, fable 2.5. These are Anthropic API list-price ratios to Opus 5.5 ($4/$20 per Mtok), which `opus` resolves to since Claude Code 2.1.280: Sonnet 5.5 ($2/$10, the `sonnet` alias since 2.1.284), Fable 5.1 ($10/$50), and Haiku 5.5 (the `haiku` alias since 2.1.293) at its rate for prompts over 100K tokens ($0.50/$2.50), because a start's later turns can cross 100K and the ledger cannot see per-turn prompt size (the base rate, $0.10/$0.50, would give 0.025). Subscription usage is assumed to draw down in roughly the same proportion. Two role exceptions: `reviewer-fable` at low effort weighs 1, on Anthropic's statement that Fable 5.1 at low is often competitive with Opus and Sonnet on cost per task; the critical Fable roles at high weigh 2.5. Effort changes a start's tokens but not its weight. The role definition sets effort; a per-call `effort` on the Agent tool (2.1.292+) overrides it, keeps the start's weight, and is the first escalation step on the same model. The hook denies a per-call `effort` on Fable roles, whose weights assume their defined effort.
 
 | Level | Use for | Budget (Opus-equivalent starts) | Active workflows | Critical Fable starts |
 | --- | --- | --: | --: | --: |
@@ -19,7 +19,7 @@ Budgets are counted in Opus-equivalent starts. Weigh each start by its model: ha
 | L3 Complex | Cross-module, high-risk, or research-then-implement | 6 | 1 | 1 |
 | L4 Exceptional | Large migration, full audit, performance campaign; requires explicit user approval in this conversation | 8 | 1 | 1 |
 
-Worked examples: an opus implementer, a sonnet qa, a sonnet reviewer, and five haiku Explore starts spend 3.25 of L2's 4; three opus and two sonnet readers spend 4 of L3's 6; a workflow of eight sonnet finders spends 4.
+Worked examples: an opus implementer, a sonnet qa, a sonnet reviewer, and five haiku Explore starts spend 2.625 of L2's 4; three opus and two sonnet readers spend 4 of L3's 6; a workflow of eight sonnet finders spends 4.
 
 Counting rules:
 
@@ -34,13 +34,13 @@ Counting rules:
 
 ## Model routing
 
-Always pass an explicit `subagent_type` and `model` alias to the Agent tool. Aliases resolve to the current generation; do not pin specific versions. Keep `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` unset so per-call and definition-level models apply, and read the resolved model from the Agent tool result.
+Always pass an explicit `subagent_type` and `model` alias to the Agent tool. Aliases resolve to the current generation; do not pin specific versions. Keep `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` unset so per-call and definition-level models apply, and keep `CLAUDE_CODE_WORKFLOW_SUBAGENT_MODEL` (2.1.296) unset or `inherit`, because when set it discards every workflow agent's script `model` and `agentType` definition model (changelog and binary; env-vars does not list it). Read the resolved model from the Agent tool result; a `modelsUsed` field means the worker switched models mid-run, for example on a classifier fallback.
 
 Each role has a default model in its definition and an allowed set enforced by the hook, for Agent calls and for `agentType`/`model` pairs inside Workflow scripts. Overriding within the allowed set per call is normal; the default is where to start, not a ceiling.
 
 | Role | Default | Allowed | Typical work |
 | --- | --- | --- | --- |
-| Explore | haiku | haiku, sonnet | Narrow discovery, evidence lists; sonnet when the search needs more context or turns |
+| Explore | haiku/medium | haiku, sonnet | Narrow discovery, evidence lists; sonnet when the search needs more context or turns |
 | planner | sonnet/high | sonnet, opus | Bounded plans; opus for cross-module architecture |
 | implementer | opus/high | opus, sonnet | Production and test changes; sonnet for mechanical edits you can describe precisely |
 | qa | sonnet/high | sonnet, opus | Builds, tests, browser checks, reproduction |
@@ -49,11 +49,11 @@ Each role has a default model in its definition and an allowed set enforced by t
 | critical-implementer | fable/high | fable | One named critical change |
 | critical-reviewer | fable/high | fable | One named critical audit |
 
-Escalation order, from the Claude Code model guidance: ask whether the worker did not try hard enough or did not know enough. Not trying hard enough (skipped a file, did not run tests, did not double-check) means raise effort or rerun with a sharper prompt on the same model. Not knowing enough (subtle bug, unfamiliar domain, architecture decision) means move to a stronger model. Judge cost per completed task, not per token; a cheaper worker that needs another round is not cheaper.
+Escalation order, from the Claude Code model guidance: ask whether the worker did not try hard enough or did not know enough. Not trying hard enough (skipped a file, did not run tests, did not double-check) means raise effort with a per-call `effort` on the same role (not on Fable roles) or rerun with a sharper prompt on the same model. Not knowing enough (subtle bug, unfamiliar domain, architecture decision) means move to a stronger model. Judge cost per completed task, not per token; a cheaper worker that needs another round is not cheaper.
 
 Routing notes:
 
-- implementer at opus/high runs one step above the model's default: `opus` resolves to Opus 5.5 since Claude Code 2.1.280, and Opus 5.5 defaults to `medium`; every other effort-capable model defaults to `high` except Opus 4.7 (`xhigh`), and xhigh is otherwise the default only under ultracode. A definition's `effort` overrides the session level, so the role's `high` applies on Opus 5.5. Raise to xhigh when rework or failed verification shows the task needs it.
+- implementer at opus/high and planner, qa, and reviewer at sonnet/high run one step above their model's default: `opus`, `sonnet`, and `haiku` resolve to Opus 5.5 (2.1.280), Sonnet 5.5 (2.1.284), and Haiku 5.5 (2.1.293), which all default to `medium`; other effort-capable models default to `high` except Opus 4.7 (`xhigh`). Ultracode no longer changes effort since 2.1.284; only `--effort ultracode` sets xhigh. A definition's `effort` overrides the session level, so each role's level applies on these models; Explore at medium matches Haiku 5.5's default. A workflow agent without `effort` runs at the session's effort settings for its own model, not at the main session's level (verified on 2.1.296: a sonnet agent ran at medium while the main session ran at xhigh). Raise to xhigh when rework or failed verification shows the task needs it.
 - Review prompts are adversarial: ask the reviewer to refute the change and prove it does not work. A second reviewer with fresh context beats re-asking the same one.
 - Built-in types such as general-purpose and Plan also need an explicit haiku, sonnet, or opus alias.
 - A fork ignores the model parameter and runs on the main-session model. Count it at that model's weight and use it only when the full conversation context is required.
@@ -71,4 +71,5 @@ Two kinds of Fable worker exist and are budgeted differently.
 - Run critical roles serially after cheaper evidence is consolidated into a compact packet. Never place any Fable worker in parallel(), pipeline(), restart, resume, repair, or rerun.
 - Never use Fable workers for exploration, fan-out, routine implementation, builds, browser QA, formatting, or documentation.
 - Raise a critical role to xhigh only when an eval on real tasks shows headroom at high. Anthropic reports Fable 5.1 at medium roughly matches Fable 5 at lower cost, so medium is the named midpoint to evaluate between reviewer-fable at low and the critical roles at high.
-- If a Fable worker ends with a refusal stop reason, report that, do not count it as a failed normal-role attempt, and rerun the same task on opus/xhigh without spending another Fable start. Claude Code does re-run classifier-flagged requests on a category fallback model (Fable 5.1 and Opus 5.5: biology on Opus 5, cybersecurity on Opus 4.8; Opus 5 refuses biology outright) and shows a notice; `opus` resolves to Opus 5.5 since 2.1.280, so the rerun itself runs on a classifier-bearing model and can be flagged again, as the Opus 5 rerun already could; this machine sets `switchModelsOnFlag: false`, which turns that into a pause for a manual choice in interactive sessions and an error in `-p` runs, and the docs do not say whether the automatic fallback reaches subagents. The manual rerun rule therefore stays. Finding vulnerabilities in source code is permitted; false positives come mostly from compile-check phrasing, obscure languages, and base64 in tool output.
+- Inside a subagent, Claude Code re-runs a classifier-flagged request on the category fallback model without asking, even with this machine's `switchModelsOnFlag: false`, which only pauses the main interactive session (and ends a `-p` turn with a refusal). Fable 5.1 and Opus 5.5 fall back to Opus 5 for biology and Opus 4.8 for cybersecurity; Sonnet 5.5 falls back to Sonnet 5 for cybersecurity and refuses biology; Opus 5 refuses biology outright. The fallback keeps the effort level (2.1.287). An automatic fallback is not a new start, but its output is the fallback model's, not a Fable judgement: when the Agent result carries `modelsUsed`, count the Fable start and treat the result accordingly.
+- If a Fable worker still ends with a refusal stop reason (for example no fallback for the category, or a fallback blocked by `availableModels`), report that, do not count it as a failed normal-role attempt, and rerun the same task on opus/xhigh without spending another Fable start. That rerun runs on Opus 5.5, which carries classifiers, so it can be flagged again. Finding vulnerabilities in source code is permitted; false positives come mostly from compile-check phrasing, obscure languages, and base64 in tool output.
