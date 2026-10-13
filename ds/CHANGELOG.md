@@ -9,6 +9,10 @@ Tracks changes to the personal Claude Code dispatch configuration in this direct
 
 Entry format: Claude Code version, date, what changed here, and which official facts drove the change.
 
+## 2.1.296 (2026-10-13)
+
+- `skills/dispatch-policy/SKILL.md`: Codex delegation now always passes `--effort`: `medium` by default, `xhigh` for a genuinely hard problem or after a medium attempt fell short. The Codex plugin (`openai-codex` 1.0.6) accepts `--effort` from `none` to `xhigh` and sends no effort of its own, so a request without `--effort` runs at the machine's `config.toml` default, which moved from `xhigh` to `medium` on 2026-10-13 after a same-moment Codex root experiment (one read-and-explain task: 210 s at xhigh, 108 s at medium, no wrong citations in either). Under the old wording a hard problem sent without the flag would now run at medium. The Codex-side change itself is recorded in the Codex deployment post, not in this repository.
+
 ## 2.1.296 (2026-10-11)
 
 Re-verified against the 2.1.283-2.1.296 changelog (14 releases, 1,248 lines) and all 222 official docs pages downloaded as markdown the same day: a workflow of three Sonnet changelog readers, four post auditors, and an Opus config audit, then two Opus adversarial verifiers and an Opus completeness critic; 90 findings, 4 refuted. Three open questions were settled by isolated `claude -p` runs and one in-session workflow. The bundled workflow-authoring text extracted from the 2.1.296 binary differs from the override only in its listed policy hunks and runtime placeholders. No setting or environment variable this configuration uses was removed in the range.
