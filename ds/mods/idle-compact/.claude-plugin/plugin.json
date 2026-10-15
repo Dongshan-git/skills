@@ -1,0 +1,6 @@
+{
+  "name": "idle-compact",
+  "version": "0.1.0",
+  "description": "Compacts a large main conversation shortly before its one-hour prompt cache expires, without feature-flag fetching",
+  "author": { "name": "Dongshan" }
+}

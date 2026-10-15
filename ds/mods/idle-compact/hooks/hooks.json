@@ -1,0 +1,4 @@
+{
+  "description": "The idle-compact hooks module",
+  "modules": ["./register.js"]
+}
