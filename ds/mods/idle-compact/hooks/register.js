@@ -1,5 +1,8 @@
-// Local stand-in for Claude Code's idle compaction (2.1.299). The built-in feature reads its
-// mode from a fetched feature flag, so it stays off wherever DISABLE_TELEMETRY is set.
+// Backstop for Claude Code's built-in idle compaction. Written for 2.1.300, when the built-in
+// feature needed fetched feature flags; since 2.1.314 it also runs with DISABLE_TELEMETRY set,
+// usually fires first (0.9 of the cache window after the last request), and then this mod finds
+// a small context and does nothing. The mod only acts where the built-in pass did not compact,
+// and unlike it does not hold back when the usage limit is near.
 // After a main-loop turn ends, wait 0.9 of the one-hour prompt cache lifetime; if no turn has
 // started since and the context is large, compact while the cache is still warm, so the next
 // message sends a summary instead of rebuilding the whole conversation cache.
